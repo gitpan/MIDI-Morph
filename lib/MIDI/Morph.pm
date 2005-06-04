@@ -3,6 +3,9 @@ package MIDI::Morph;
 use warnings;
 use strict;
 
+our @ISA       = qw(Exporter);
+our @EXPORT_OK = qw(event_distance);
+
 =head1 NAME
 
 MIDI::Morph - Musical transition tool
@@ -13,7 +16,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 
@@ -106,17 +109,55 @@ sub Morph {
 
 =head2 event_distance
 
-This is to be used in the future.
+    MIDI::Morph::event_distance($event1, $event2, $weights);
+
+This function calculates the distance between two events. The events passed
+should be note events as described in L<MIDI::Score>. The weights are passed
+as a hash reference with the keys C<start>, C<end>, C<pitch> and C<velocity>.
+This parameter is optional; the default weights are 1, 1, 1 and 0 respectively.
+
+These weights can be used in case you want to measure the distance between
+two events in different terms.
 
 =cut
 
-sub event_distance {
-    my ($a, $b) = @_;
-    
-    return undef unless ref $a  eq 'ARRAY' && ref $b  eq 'ARRAY';
-    return undef unless $a->[0] eq 'note'  && $b->[0] eq 'note';
+our %distance_default_weights = (
+    start    => 1,
+    end      => 1,
+    pitch    => 1,
+    velocity => 0);
 
-    return abs($a->[1] - $b->[2]);
+our %distance_weights = %distance_default_weights;
+
+sub event_distance {
+    my ($a, $b, $weights) = @_;
+
+    # 'note', position, duration, channel, pitch, velocity
+    # 0       1         2         3        4      5
+    return undef unless ref $a eq 'ARRAY' && ref $b eq 'ARRAY';
+    return undef unless scalar @$a == 6 && scalar @$a == 6;
+    return undef unless $a->[0] eq 'note' && $b->[0] eq 'note';
+
+    my %weights = %distance_weights;
+
+    if (ref $weights eq 'HASH') {
+        foreach (keys %weights) {
+            $weights{$_} = $weights->{$_} if defined $weights->{$_};
+        }
+    }
+
+#    use Data::Dumper qw(Dumper);
+#    print STDERR "\n\n" . Dumper({
+#        weights => \%weights,
+#        a => $a,
+#        b => $b
+#    }).  "\n\n";
+
+    return
+      abs($a->[1] - $b->[1]) * $weights{start} +
+      abs(($a->[1] + $a->[2]) - ($b->[1] + $b->[2])) * $weights{end} +
+      abs($a->[4] - $b->[4]) * $weights{pitch} +
+      abs($a->[5] - $b->[5]) * $weights{velocity};
 }
 
 =head2 morph_single_event
